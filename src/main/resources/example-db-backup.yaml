@@ -1,0 +1,15 @@
+apiVersion: org.linuxfoundation.demos/v1alpha1
+kind: Backup
+metadata:
+  name: my-database-backup
+spec:
+  database:
+    name: postgres
+    host: postgres.default.svc.cluster.local
+    port: 5432
+    user: postgres
+    passwordSecret: postgres  # Reference to a Kubernetes Secret
+  schedule: ""
+  retention: 7  # Keep backups for 7 days
+  storageLocation: /mnt/backups  # Local or NFS storage location
+
