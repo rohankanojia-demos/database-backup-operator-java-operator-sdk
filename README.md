@@ -29,7 +29,14 @@ It demonstrates how to perform basic operations such as:
 
 Since this operator takes backup of a PostegreSQL database, you need to install a database on your Kubernetes Cluster. For this demo, you can use the example in resources folder:
 ```shell
+kubectl create -f src/main/resources/backup-persistent-volume.yaml
 kubectl create -f src/main/resources/postgres-db.yaml
+# Create database
+PGPASSWORD='password' psql -h `minikube ip` -p `kubectl get service postgres -o jsonpath='{.spec.ports[?(@.nodePort)].nodePort}'` -U postgres -d postgres -f src/main/resources/world.sql
+# Connect to database
+PGPASSWORD='password' psql -h `minikube ip` -p `kubectl get service postgres -o jsonpath='{.spec.ports[?(@.nodePort)].nodePort}'` -U postgres -d postgres
+postgres=# \dt
+postgres=# SELECT * FROM countrylanguage;
 ```
 
 ## How to Run?
