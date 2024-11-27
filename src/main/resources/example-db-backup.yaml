@@ -9,7 +9,7 @@ spec:
     port: 5432
     user: postgres
     passwordSecret: postgres  # Reference to a Kubernetes Secret
-  schedule: ""
+  schedule: "0/3 * * * * ?"
   retention: 7  # Keep backups for 7 days
   storageLocation: /mnt/backups  # Local or NFS storage location
 
