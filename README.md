@@ -3,6 +3,7 @@
 This repository implements a simple controller for performing regular database backups by watching a CustomResourceDefinition (CRD) named Backup.
 
 User would provide a custom resource named Backup with following parameters:
+
 ```yaml
 apiVersion: org.linuxfoundation.demos/v1alpha1
 kind: Backup
@@ -27,7 +28,14 @@ It demonstrates how to perform basic operations such as:
 
 ## Prerequisites
 
+### Local Kubernetes Cluster
+
+I'm using minikube for local Kubernetes cluster. You can get it from [here](https://minikube.sigs.k8s.io/docs/start/)
+
+### Database running in Kubernetes Cluster
+
 Since this operator takes backup of a PostegreSQL database, you need to install a database on your Kubernetes Cluster. For this demo, you can use the example in resources folder:
+
 ```shell
 kubectl create -f src/main/resources/backup-persistent-volume.yaml
 kubectl create -f src/main/resources/postgres-db.yaml
@@ -52,17 +60,20 @@ eval $(minikube -p minikube docker-env)
 mvn package k8s:build k8s:resource k8s:apply
 ```
 Once Operator has been deployed to Cluster, check for pods (there should be one named `database-backup-operator` running:
+
 ```shell
 kubectl get pods
 ```
 
 Create an instance of `Foo` resource:
+
 ```shell
 kubectl create -f src/main/resources/example-db-backup.yaml
 backup.org.linuxfoundation.demos/my-database-backup created
 ```
 
 The operator also provides view of backed up files on its homepage. Check application url and open it in browser:
+
 ```shell
 # Get application URL and open in browser
 minikube service database-backup-operator list --url

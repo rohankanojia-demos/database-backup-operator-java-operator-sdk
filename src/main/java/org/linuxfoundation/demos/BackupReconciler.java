@@ -27,6 +27,7 @@ import java.util.Base64;
 @ControllerConfiguration
 @ApplicationScoped
 public class BackupReconciler implements Reconciler<Backup> {
+  private static final String BACKUP_FILE_TIME_FORMAT = "yyyy.MM.dd.HH.mm.ss";
   private static final String DEFAULT_SCHEDULE = "0/3 * * * * ?";
   private static final Logger logger = LoggerFactory.getLogger(BackupReconciler.class.getSimpleName());
 
@@ -75,22 +76,26 @@ public class BackupReconciler implements Reconciler<Backup> {
   }
 
   private void performBackup(Backup backup, String dbPassword) {
-    logger.info("Connecting to database");
+    logger.info("Connecting to database {}/{}", backup.getSpec().getDatabase().getHost(), backup.getSpec().getDatabase().getName());
     try (Connection conn = DriverManager.getConnection(
       "jdbc:postgresql://" + backup.getSpec().getDatabase().getHost() + ":" + backup.getSpec().getDatabase().getPort() + "/" + backup.getSpec().getDatabase().getName(),
       backup.getSpec().getDatabase().getUser(),
       dbPassword)) {
       logger.info("Success");
-      File backupFile = Paths.get(backup.getSpec().getStorageLocation(), backup.getMetadata().getName() + "-" + new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new java.util.Date()) + ".sql").toFile();
-      String backupCommand = "COPY (SELECT * FROM country) TO '" + backupFile.getAbsolutePath() + "' WITH (FORMAT csv)";
+      File backupFile = Paths.get(backup.getSpec().getStorageLocation(), backup.getMetadata().getName() + "-" + new SimpleDateFormat(BACKUP_FILE_TIME_FORMAT).format(new java.util.Date()) + ".csv").toFile();
+      String backupCommand = String.format("COPY (SELECT * FROM %s) TO '%s' WITH (FORMAT csv)",
+        backup.getSpec().getDatabase().getTable(),
+        backupFile.getAbsolutePath());
 
-      logger.info("Taking backup");
       try (Statement stmt = conn.createStatement()) {
-        stmt.execute(backupCommand);
+        logger.info("Taking backup...");
+        boolean executedSuccessfully = stmt.execute(backupCommand);
+        if (executedSuccessfully) {
+          logger.info("Success");
+        }
       }
-
     } catch (Exception e) {
-      e.printStackTrace();
+      logger.error("failure in taking backup", e);
     }
   }
 
