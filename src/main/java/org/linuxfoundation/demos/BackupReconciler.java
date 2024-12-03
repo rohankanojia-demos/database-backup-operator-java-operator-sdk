@@ -7,7 +7,6 @@ import io.javaoperatorsdk.operator.api.reconciler.ControllerConfiguration;
 import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
 import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
 
-import io.quarkus.runtime.util.StringUtil;
 import io.quarkus.scheduler.Scheduled;
 import io.quarkus.scheduler.Scheduler;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -16,19 +15,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.List;
+import java.util.stream.Stream;
 
 @ControllerConfiguration
 @ApplicationScoped
 public class BackupReconciler implements Reconciler<Backup> {
   private static final String BACKUP_FILE_TIME_FORMAT = "yyyy.MM.dd.HH.mm.ss";
-  private static final String DEFAULT_SCHEDULE = "0/3 * * * * ?";
+  private static final String BACKUP_CLEANUP_SCHEDULE = "0 15 10 * * ?";
   private static final Logger logger = LoggerFactory.getLogger(BackupReconciler.class.getSimpleName());
 
   @Inject
@@ -37,6 +44,18 @@ public class BackupReconciler implements Reconciler<Backup> {
   @Override
   public UpdateControl<Backup> reconcile(final Backup backup, Context<Backup> context) throws Exception {
     // Fetch the database password from the Kubernetes Secret
+    String dbPassword = getDbPasswordFromKubernetesSecret(backup, context);
+
+    // Create/Update schedule for the backup job
+    scheduleBackup(backup, dbPassword);
+
+    // Logic to handle retention policy
+    handleRetention(backup);
+
+    return UpdateControl.noUpdate();
+  }
+
+  private static String getDbPasswordFromKubernetesSecret(Backup backup, Context<Backup> context) {
     logger.info("Checking Secret exists Kubernetes Cluster");
     Secret secret = context.getClient().secrets()
       .inNamespace(backup.getMetadata().getNamespace())
@@ -44,29 +63,20 @@ public class BackupReconciler implements Reconciler<Backup> {
       .get();
     if (secret == null) {
       logger.error("Unable to find Secret {} in Kubernetes Cluster", backup.getSpec().getDatabase().getPasswordSecret());
+      return null;
     }
     logger.info("Fetched Secret {}", secret.getMetadata().getName());
     String dbPassword = secret.getData().get("POSTGRES_PASSWORD");
     dbPassword = new String(Base64.getDecoder().decode(dbPassword.getBytes(StandardCharsets.UTF_8)));
-
-    // Schedule the backup job
-    scheduleBackup(backup, dbPassword);
-
-    // Logic to handle retention policy
-    handleRetention(backup);
-
-    return UpdateControl.noUpdate();
-
+    return dbPassword;
   }
 
   private void scheduleBackup(Backup backup, String dbPassword) {
     String schedule = backup.getSpec().getSchedule();
-    if (StringUtil.isNullOrEmpty(schedule)) {
-      schedule = DEFAULT_SCHEDULE;
-    }
     logger.info("Scheduled job as per {}", schedule);
 
     if (scheduler.getScheduledJob(backup.getMetadata().getName()) != null) {
+      logger.info("Deleting previous schedule for {}", backup.getMetadata().getName());
       scheduler.unscheduleJob(backup.getMetadata().getName());
     }
     scheduler.newJob(backup.getMetadata().getName())
@@ -100,7 +110,40 @@ public class BackupReconciler implements Reconciler<Backup> {
   }
 
   private void handleRetention(Backup backup) {
-    // Logic to delete old backups based on the retention policy
+    String retentionJobName = String.format("%s-retention", backup.getMetadata().getName());
+    if (scheduler.getScheduledJob(retentionJobName) != null) {
+      scheduler.unscheduleJob(retentionJobName);
+    }
+    scheduler.newJob(retentionJobName)
+      .setCron(BACKUP_CLEANUP_SCHEDULE)
+      .setTask(executionContext -> cleanUpOldFiles(backup))
+      .schedule();
+  }
+
+  private void cleanUpOldFiles(Backup backup) {
+    logger.info("Cleaning up old files for {}", backup.getMetadata().getName());
+    Path backupDirPath = Paths.get(backup.getSpec().getStorageLocation());
+    if (backupDirPath.toFile().isDirectory()) {
+      try (Stream<Path> files = Files.list(backupDirPath)
+        .filter(p -> p.toFile().getName().startsWith(backup.getMetadata().getName()))) {
+        Instant now = Instant.now();
+
+        List<Path> backupFiles = files.toList();
+        logger.info("{} backup files found", backupFiles.size());
+        for (Path backupFilePath : backupFiles) {
+          BasicFileAttributes attrs = Files.readAttributes(backupFilePath, BasicFileAttributes.class);
+          Instant fileTime = attrs.lastModifiedTime().toInstant();
+          long ageInDays = ChronoUnit.DAYS.between(fileTime, now);
+          logger.info("{} age in days", ageInDays);
+          if (ageInDays >= backup.getSpec().getRetention()) {
+            Files.delete(backupFilePath);
+            logger.info("Deleted: {}", backupFilePath.getFileName());
+          }
+        }
+      } catch (IOException ioException) {
+        logger.error("error while performing cleanup", ioException);
+      }
+    }
   }
 
   @Scheduled(every = "10m")

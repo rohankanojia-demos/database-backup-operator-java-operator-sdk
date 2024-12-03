@@ -1,7 +1,7 @@
 apiVersion: org.linuxfoundation.demos/v1alpha1
 kind: Backup
 metadata:
-  name: my-database-backup
+  name: postgres-database-backup
 spec:
   database:
     name: postgres                           # Database Name

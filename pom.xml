@@ -18,7 +18,8 @@
         <fabric8.version>6.13.1</fabric8.version>
         <jkube.version>1.17.0</jkube.version>
         <jkube.createExternalUrls>true</jkube.createExternalUrls>
-        <jkube.domain>192.168.39.32.nip.io</jkube.domain>
+        <!-- An entry to /etc/hosts is needed for minikube ip -->
+        <jkube.domain>apps.local</jkube.domain>
         <jkube.enricher.jkube-service.type>NodePort</jkube.enricher.jkube-service.type>
     </properties>
 
