@@ -6,16 +6,40 @@
     <meta http-equiv="refresh" content="3">
     <title>backup List</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        ul { list-style-type: none; padding: 0; }
-        li { background-color: #f9f9f9; padding: 10px; margin-bottom: 5px; border: 1px solid #ddd; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px; }
+       .container { display: flex; justify-content: space-between; padding-left: 15%; padding-right: 15%; }
+       .list { padding-left: 15%; padding-right: 15%;}
+       body { font-family: Arial, sans-serif; padding: 20px; }
+       ul { list-style-type: none; padding: 0; }
+       li { background-color: #f9f9f9; padding: 10px; margin-bottom: 5px; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
-<h1>Database Backup Files</h1>
-<ul id="backup-list">
-    <!-- backup list will be populated here -->
-</ul>
+<header>
+    <h1>Database Backup Operator</h1>
+    <img src="images/kccnc-india-2024-black.png" alt="KubeCon India Logo" width="240" height="120">
+</header>
+<div class="container">
+    <div>
+        <h2>Backups</h2>
+        <hr>
+        <ul id="backup-crs">
+            <!-- backups will be populated here -->
+        </ul>
+    </div>
+
+    <div>
+        <h2>Database Backup Files</h2>
+        <hr>
+        <ul id="backup-list">
+            <!-- backup list will be populated here -->
+        </ul>
+    </div>
+
+</div>
+
+
+
 
 <script>
     // Fetch backups from the backend REST API
@@ -31,6 +55,20 @@
         })
         .catch(error => {
             console.error('Error fetching backups:', error);
+        });
+        // Fetch backups from the backend REST API
+    fetch('/backup/list-cr')
+        .then(response => response.json())
+        .then(backups => {
+            const backupList = document.getElementById('backup-crs');
+            backups.forEach(backup => {
+                const listItem = document.createElement('li');
+                listItem.textContent = backup;
+                backupList.appendChild(listItem);
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching backup custom resources:', error);
         });
 </script>
 </body>

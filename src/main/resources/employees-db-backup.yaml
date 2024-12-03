@@ -10,6 +10,6 @@ spec:
     user: postgres                           # Database Username
     table: employees                         # Table Name
     passwordSecret: postgres                 # Reference to a Kubernetes Secret
-  schedule: "0/3 * * * * ?"                  # Backup Schedule
+  schedule: "0/5 * * * * ?"                  # Backup Schedule
   retention: 7                               # Keep backups for 7 days
   storageLocation: /mnt/backups              # Storage location

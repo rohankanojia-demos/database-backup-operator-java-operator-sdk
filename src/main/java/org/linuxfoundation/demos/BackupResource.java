@@ -1,5 +1,10 @@
 package org.linuxfoundation.demos;
 
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.client.CustomResource;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
+import demos.linuxfoundation.org.v1alpha1.Backup;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Response;
@@ -40,5 +45,21 @@ public class BackupResource {
     }
 
     return Response.ok(fileNames).build();
+  }
+
+  @GET
+  @Path("/list-cr")
+  public Response listBackupCustomResources() {
+    try (KubernetesClient kubernetesClient = new KubernetesClientBuilder().build()) {
+      List<String> backupCustomResourceList = kubernetesClient.resources(Backup.class)
+        .inNamespace("default")
+        .list()
+        .getItems()
+        .stream()
+        .map(CustomResource::getMetadata)
+        .map(ObjectMeta::getName)
+        .toList();
+      return Response.ok(backupCustomResourceList).build();
+    }
   }
 }
