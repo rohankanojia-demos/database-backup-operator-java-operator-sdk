@@ -2,8 +2,10 @@ package org.linuxfoundation.demos;
 
 import demos.linuxfoundation.org.v1alpha1.Backup;
 import io.fabric8.kubernetes.api.model.Secret;
+import io.javaoperatorsdk.operator.api.reconciler.Cleaner;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.api.reconciler.ControllerConfiguration;
+import io.javaoperatorsdk.operator.api.reconciler.DeleteControl;
 import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
 import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
 
@@ -33,7 +35,7 @@ import java.util.stream.Stream;
 
 @ControllerConfiguration
 @ApplicationScoped
-public class BackupReconciler implements Reconciler<Backup> {
+public class BackupReconciler implements Reconciler<Backup>, Cleaner<Backup> {
   private static final String BACKUP_FILE_TIME_FORMAT = "yyyy.MM.dd.HH.mm.ss";
   private static final String BACKUP_CLEANUP_SCHEDULE = "0 15 10 * * ?";
   private static final Logger logger = LoggerFactory.getLogger(BackupReconciler.class.getSimpleName());
@@ -45,7 +47,6 @@ public class BackupReconciler implements Reconciler<Backup> {
   public UpdateControl<Backup> reconcile(final Backup backup, Context<Backup> context) throws Exception {
     // Fetch the database password from the Kubernetes Secret
     String dbPassword = getDbPasswordFromKubernetesSecret(backup, context);
-
     // Create/Update schedule for the backup job
     scheduleBackup(backup, dbPassword);
 
@@ -56,7 +57,6 @@ public class BackupReconciler implements Reconciler<Backup> {
   }
 
   private static String getDbPasswordFromKubernetesSecret(Backup backup, Context<Backup> context) {
-    logger.info("Checking Secret exists Kubernetes Cluster");
     Secret secret = context.getClient().secrets()
       .inNamespace(backup.getMetadata().getNamespace())
       .withName(backup.getSpec().getDatabase().getPasswordSecret())
@@ -149,5 +149,13 @@ public class BackupReconciler implements Reconciler<Backup> {
   @Scheduled(every = "10m")
   public void noOp() {
     // NOOP
+  }
+
+  @Override
+  public DeleteControl cleanup(Backup resource, Context<Backup> context) {
+    logger.info("Deletion of Backup with name {} detected", resource.getMetadata().getName());
+    logger.info("Removing scheduled job {}", resource.getMetadata().getName());
+    scheduler.unscheduleJob(resource.getMetadata().getName());
+    return DeleteControl.defaultDelete();
   }
 }
