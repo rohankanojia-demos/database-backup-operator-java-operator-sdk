@@ -12,6 +12,8 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 
@@ -39,6 +41,7 @@ public class BackupResource {
         .build();
     }
 
+    Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
     List<String> fileNames = new ArrayList<>();
     for (File file : files) {
       fileNames.add(file.getName());
